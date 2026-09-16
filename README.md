@@ -1,213 +1,216 @@
-# Kindle AI 额度中控台
+# 算力有数 · Kindle AI 额度面板
 
-把吃灰的 Kindle 变成 AI 额度监控屏。实时显示 Claude、Codex、Kimi、DeepSeek 的用量，外加天气和每日一语。
+把闲置的 **Kindle Paperwhite 第七代（Paperwhite 3 / KPW3）**，改成放在桌边的 AI 额度看板。
 
-**不需要同一个 WiFi。** 电脑和 Kindle 可以在不同的网络——数据通过 GitHub Pages 中转，只要两边都能上网就行。这是和 GitHub 上其他类似项目最大的区别：它们大多要求电脑和显示设备在同一个局域网里。
+这个版本围绕我自己的 KPW3 做了魔改：保留电脑采集额度、GitHub Pages 中转的流程，把 Kindle 端的主要入口改成 **KOReader 原生全屏插件**，用黑白大字、用量条和分页展示 Codex、Z.ai 等服务的额度。
 
-![中控台效果](docs/screenshot.png)
+## 为什么魔改？
 
----
+原来的项目是一个网页版中控台：时间、天气、每日一语和多家 AI 服务放在同一页。这个方向适合查看综合信息，但我更想解决一个具体问题：**写代码时，抬头就能知道 AI 还剩多少额度、什么时候重置。**
 
-## 它能做什么？
+我的设备是 Kindle Paperwhite 第七代。围绕这台老设备，改动集中在三件事：
 
-- **跨网络实时同步**——电脑在公司、Kindle 在家，额度照样更新
-- 实时监控多个 AI 平台的额度用量（支持 Claude / Codex / Kimi / DeepSeek，可自行增减）
-- 在 Kindle 墨水屏上全屏显示，放桌上一眼就能看到谁快没额度了
-- 自带天气显示、电池电量、每日一语
-- 夜间自动省电（03:00–08:00 停止刷新）
-- 局部 DOM 更新，不整页刷新，减少墨水屏闪烁
-- 隐私优先——所有 API 密钥和令牌只留在你的电脑上，不会进入 Git
+- **把额度放在最显眼的位置。** 默认展示 Codex 和 Z.ai，突出已用比例、剩余额度、重置时间，减少无关信息。
+- **让布局适合墨水屏。** 以 1072 × 1448 竖屏为目标，用白底黑字、清晰边框和固定留白；内容多了翻页，不把所有信息挤在一屏。
+- **让更新成为日常可用的流程。** 电脑运行一个 npm 命令持续采集并上传，Kindle 联网后定时拉取，日常更新无需反复插 USB。
 
-## 我需要什么？
+## 魔改成了什么样？
 
-- 一台 Kindle（越狱后体验最佳，也可以用自带浏览器先试试效果）
-- 一台常开的电脑（Windows / Mac / Linux，用来采集额度数据）
-- 一个 GitHub 账号（用于 GitHub Pages 数据中转）
-- 至少一个 AI Agent（Claude Code 或 Codex）来帮你完成配置
+| 项目 | 原来的设计 | 当前魔改版 |
+| --- | --- | --- |
+| Kindle 展示入口 | 网页中控台 | KOReader 原生插件，保留网页预览 |
+| 信息重点 | 时间、天气、每日一语、多平台卡片 | 额度窗口、已用比例、剩余量、重置时间 |
+| 默认数据源 | Claude、Codex、Kimi、DeepSeek | Codex、Z.ai，可通过配置调整 |
+| 排版 | 综合信息与多列卡片 | 黑白竖屏列表，每页最多 4 项额度窗口 |
+| 操作 | 网页交互 | 左右滑动或底部按钮翻页，右上角关闭 |
+| 电脑端更新 | 分步采集、构建、发布 | `npm run watch` 持续执行完整刷新上传流程 |
+| Kindle 数据更新 | 网页拉取数据 | 插件读取本地快照，并定时从云端同步 |
 
-> 为什么需要 Agent？因为你既然用这个中控台来监控 AI 额度，说明你已经在用 AI 了。让它帮你配环境、改代码，比你自己照着文档折腾快十倍。
+### 当前面板样图
 
-## 怎么用？
+<p align="center">
+  <img src="docs/koreader-preview.png" alt="KPW3 尺寸的 KOReader 额度面板：Codex 与 Z.ai 额度列表" width="536">
+</p>
 
-**这个项目的设计理念是：你负责动手，Agent 负责动脑。**
+**这是 KOReader Linux 版在 Docker 中运行插件得到的 1072 × 1448 截图，使用演示数据，不是真机照片。** 图中的“旧数据 / 演示快照”用于说明数据状态，百分比也不是实时账户额度。真机的墨水屏残影、刷新速度和耗电需要单独验证。
 
-### 第一步：Fork 仓库
+### 魔改前的网页样图
 
-点右上角的 Fork，把这个仓库复制到你的 GitHub 账号下。
+<details>
+<summary>展开查看原来的综合中控台布局</summary>
 
-### 第二步：把仓库交给你的 Agent
+<p align="center">
+  <img src="docs/screenshot.png" alt="旧版网页中控台：天气、每日一语与四家 AI 服务卡片" width="400">
+</p>
 
-把仓库地址丢给你的 Claude Code 或 Codex，告诉它：
+这是仓库保留的旧版网页演示截图，便于对比信息布局。
 
-> "我想用 Kindle 做一个 AI 额度中控台。这是开源项目的仓库，帮我看看怎么在我的电脑上跑起来。我用的 AI 平台是 ____（列出你在用的），我的 Kindle 型号是 ____，我的电脑是 Windows / Mac。"
+</details>
 
-Agent 会阅读仓库里的代码和文档，然后告诉你：
-- 需要你提供哪些 API 凭证
-- 如何在你的电脑上设置采集脚本
-- 如何配置 GitHub Pages 作为数据中转
+## 我的设备与当前状态
 
-### 第三步：越狱 Kindle
+| 项目 | 说明 |
+| --- | --- |
+| 设备 | **Kindle Paperwhite 第七代（KPW3）** |
+| 面板目标尺寸 | 1072 × 1448，竖屏 |
+| Kindle 端 | 已越狱，安装 KUAL、KOReader，再安装额度插件 |
+| 电脑端 | 当前使用 Windows；完整图片生成脚本会查找 Windows 上的 Chrome / Edge |
+| 数据中转 | GitHub Pages，插件另配有 jsDelivr 备用地址 |
 
-这一步需要你亲自操作（Agent 可以指导你，但按钮得你按）。
+当前已确认这台设备能打开 KOReader；插件已有模拟器预览。KUAL →「AI 额度面板」快捷入口曾停留在启动提示，原因仍待排查，因此下面以 **先打开 KOReader，再从插件菜单打开面板** 为使用路径。
 
-推荐方案是 [WinterBreak](https://kindlemodding.org/jailbreaking/WinterBreak/)，具体操作流程让你的 Agent 根据你的 Kindle 型号和固件版本来指导。核心要点：
+## 数据怎么到 Kindle？
 
-1. **先开飞行模式**，防止固件自动升级
-2. 按照越狱指南操作
-3. 安装 KUAL + KOReader
+```text
+电脑上的账户凭证 / 环境变量
+            │
+            ▼
+       采集 AI 额度
+            │
+            ▼
+导出数据 + 生成网页与面板 PNG
+            │
+            ▼
+       GitHub Pages
+            │  Kindle 通过 Wi-Fi 拉取 kindle.json
+            ▼
+   本地 aiquota/data.json
+            │
+            ▼
+     KOReader 原生面板
+```
 
-越狱完成后，你的 Agent 可以通过 KOReader 的 SSH 功能把中控台部署到 Kindle 上。
+电脑和 Kindle 不需要在同一个 Wi-Fi，只要各自能访问所需的网络服务即可。原生插件使用 JSON 数据绘制界面；发布的 PNG 是额外产物。
 
-> 不想越狱？也可以用 Kindle 自带的「体验版浏览器」打开 GitHub Pages 链接来查看，只是不能全屏、会自动息屏。
+这是**定时更新**：电脑采集上传、Pages 发布、Kindle 拉取之间会有延迟。
 
-### 第四步：告诉 Agent 你的偏好
+## 开始使用
 
-- 你想监控哪几家 AI 的额度？（只用 Claude 一家也行）
-- 每日一语想要什么风格？（古诗词 / 外国文学 / 励志 / 随机）
-- 前端想不想自己改？（颜色、布局、卡片顺序等都可以 DIY）
+### 1. 准备电脑端配置
 
-Agent 会帮你配好一切。配好之后，Kindle 上就是全屏仪表盘，放桌上当额度监控屏。
+准备 Node.js 18+、Git，以及用于生成图片的 Chrome 或 Edge。Git 必须能向自己的 GitHub 仓库推送；如需脚本自动配置 Pages，还需已登录的 `gh` CLI，否则在仓库 Settings → Pages 中手动选择 `gh-pages` 分支。
 
----
+将 `config.example.json` 复制为 `config.json`，按需启用数据源。模板默认关闭全部采集器，`displayProviders` 控制展示的服务与顺序：
 
-## 先看看效果（不需要 Kindle）
+```json
+"displayProviders": ["codex", "zai"]
+```
 
-需要 Node.js 18+，不需要安装第三方依赖：
+- Codex：将 `providers.codex.enabled` 设为 `true`，准备好本机已登录的 Codex CLI；需要指定路径时设置 `CODEX_CLI_PATH` 环境变量。
+- Z.ai：将 `providers.zai.enabled` 设为 `true`，在运行命令的环境中设置 `ZAI_API_KEY`。
+- 其他采集器配置见 [配置模板](config.example.json) 和 [系统架构](docs/architecture.md)。
+
+密钥和登录凭证留在电脑端，不要填进公开文件。Pages 上的额度快照可被访问，公开内容可能包含百分比、余额、时间和说明，详见 [隐私说明](docs/privacy.md)。
+
+### 2. 先刷新上传一次
+
+在项目根目录运行：
 
 ```bash
-git clone https://github.com/softmutiny/kindle-ai-quota-dashboard.git
-cd kindle-ai-quota-dashboard
+npm run refresh
+```
+
+按顺序执行：**采集 → 导出 Kindle 数据 → 生成图片 → 构建并上传 GitHub Pages**。发布到 `origin` 对应仓库的 `gh-pages` 分支；该分支用于生成站点，每次发布会重建并强推，不要在里面保存手写源码。
+
+主要产物包括：
+
+| 文件 | 用途 |
+| --- | --- |
+| `data.json` / `data.js` | 网页额度数据 |
+| `kindle.json` | KOReader 插件同步数据 |
+| `dashboard.png` / `dashboard-gray.png` | 电脑渲染的面板图片 |
+
+### 3. 安装 Kindle 插件
+
+通过 USB 连接 Kindle，复制以下文件：
+
+```text
+Kindle USB 盘根目录/
+├─ koreader/
+│  └─ plugins/
+│     └─ aiquota.koplugin/   ← 复制 kindle/koplugin/aiquota.koplugin 整个目录
+└─ aiquota/
+   └─ data.json             ← 复制 state/kindle.json，并改名
+```
+
+只想先看样式，可以用 `examples/kindle.example.json` 作为 `data.json`，其中是演示数据。
+
+**使用自己的仓库时，必须修改插件的数据地址。** 在 [main.lua](kindle/koplugin/aiquota.koplugin/main.lua) 顶部的 `DATA_URLS` 中，把 Pages 和两个 CDN 地址改成自己的用户名、仓库名；当前默认地址指向本项目维护者的站点。完成修改后再复制插件到 Kindle。
+
+安全弹出 USB，重启 KOReader，进入：
+
+**屏幕顶部菜单 → 工具 → AI 额度 → 打开面板**
+
+面板不是一本书，不需要在 KOReader 文件浏览器里打开某个文件夹。菜单中还可以勾选「KOReader 启动时自动打开面板」。
+
+详细安装和预览说明见 [KOReader 插件文档](docs/koreader-plugin.md)。
+
+### 4. 持续刷新上传
+
+日常使用只需让电脑保持运行：
+
+```bash
+npm run watch
+```
+
+启动后立即刷新上传一次，每轮结束后等待 **3 分钟**再执行。失败时输出日志，下轮重试，各轮不会重叠。终端需保持打开，按 `Ctrl+C` 停止；这不会安装系统服务，也不会设置开机自启。
+
+其他用法：
+
+```bash
+npm run refresh:watch       # 每轮结束后等待 10 分钟
+npm run refresh:watch -- 5  # 自定义为 5 分钟
+```
+
+Kindle 插件打开时会先显示本地快照，再尝试云端同步；面板打开期间约每 **5 分钟**拉取一次，每分钟重新读取本地数据并更新时钟。联网失败时可继续显示已有快照，超过 **15 分钟**会标记为旧数据。休眠和唤醒沿用 KOReader 行为。
+
+## 不连接 Kindle，也能预览
+
+### 网页演示
+
+```bash
 npm run demo
 npm run build
 npm run serve
 ```
 
-浏览器打开 `http://127.0.0.1:8787`，看到的是假数据演示——不会读取任何真实账户信息。
+打开 `http://127.0.0.1:8787`。演示不会读取真实账户，但会覆盖 `state/` 中当前的额度快照；恢复真实数据时重新运行 `npm run refresh`。
 
----
+### 原生插件预览
 
-## 架构简述
-
-```
-你的电脑（采集器）                     Kindle（越狱 + 全屏 Chromium）
-  │                                      │
-  ├─ 按定时任务采集各 AI 平台额度          ├─ 每 3 分钟从 GitHub Pages 拉数据
-  ├─ 生成 data.js / data.json            ├─ 局部 DOM 更新（不闪屏）
-  └─ 按定时任务同步到 GitHub Pages        └─ 03:00–08:00 夜间省电
-                    │                      │
-                    └──── GitHub Pages ─────┘
-                        （数据中转站）
-```
-
-电脑和 Kindle **不需要在同一个网络**。数据通过 GitHub Pages 中转——电脑 push 上去，Kindle 从公网拉取。仓库不会擅自创建系统定时任务；需要由你或 Agent 配置采集与同步频率，建议分别约 3 分钟和 10 分钟。按这个设置，数据从采集到显示在屏幕上通常需要 10–15 分钟。
-
-## 接入真实数据
-
-1. 复制配置模板：`config.example.json` → `config.json`
-2. 只开启你需要的数据源
-3. API 密钥放在环境变量里，不要写进配置文件
-4. 运行 `npm run collect` + `npm run build`
-
-每个数据源默认都是关闭的，你只开你用的：
-
-| 数据源 | 数据来源 | 说明 |
-|--------|---------|------|
-| Claude | 本机 Claude Code 登录凭证 | 需要在配置中显式开启 |
-| Codex | 本机 Codex CLI | 需要在配置中显式开启 |
-| Kimi | 本机 Kimi Code 登录凭证 | 只读，不会刷新你的令牌 |
-| DeepSeek | 环境变量中的 API Key | 按量计费，显示余额 |
-
-详见 [系统架构](docs/architecture.md)。
-
-## 天气
-
-天气数据从你提供的 JSON 文件读取。可以用任意免费天气 API 生成这个文件（比如 [wttr.in](https://wttr.in)、[OpenWeatherMap 免费版](https://openweathermap.org/price)），不需要额外花钱。
-
-把 `examples/weather.example.json` 复制到 `config/` 目录，然后告诉你的 Agent 你在哪个城市，它会帮你配好自动更新。
-
-## 每日一语
-
-`examples/quote.example.json` 是模板，复制到 `config/` 后可以：
-
-- 让你的 Agent 每天自动选一句推送（我们就是这么干的）
-- 自己手动改
-- 写一个定时脚本调用任意 AI 生成
-
-示例提示词（给你的 Agent 或者写进定时任务）：
-
-> "从中国古诗词或世界文学经典中选一句适合今天心境的话，要求简短、有意境。只输出原文和出处，不要解释。"
-
-你也可以把这段提示词改成你喜欢的风格——二次元台词、电影金句、毒鸡汤，随你。
-
-## DIY 前端
-
-前端是纯 HTML + CSS + JS，没有框架依赖，随便改。
-
-| 文件 | 用途 |
-|------|------|
-| `web/index.html` | 主页面 |
-| `web/style.css` | 样式 |
-| `web/dashboard-runtime.js` | 实际构建使用的数据拉取、缓存和渲染逻辑 |
-
-`web/app.js` 是早期页面实现，为兼容旧 Fork 暂时保留；当前构建不会使用它。
-
-想改颜色和字体？直接改 CSS。想加一个新的 AI 平台？在 `src/collectors/` 里加一个采集器，Agent 会帮你搞定。
-
-改完之后运行 `npm run build` 重新构建，然后让 Agent 同步到 Kindle。
-
-## 跨平台说明
-
-采集脚本是 Node.js 写的，Windows / Mac / Linux 都能跑。不同平台有一些小差异（凭证路径、定时任务方式、SSH 工具），但这些你的 Agent 都能处理——告诉它你的操作系统就行。
-
-## 常见问题
-
-**Q: 必须越狱才能用吗？**
-作为全屏 APP 需要越狱。但你也可以先用 Kindle 自带的「体验版浏览器」打开 GitHub Pages 链接来看看效果，只是不能全屏、会自动息屏。
-
-**Q: 会不会把 Kindle 搞坏？**
-越狱本身有极小概率的风险，但只要按官方指南操作、不跳步骤，基本不会出问题。中控台本身不修改 Kindle 系统文件。
-
-**Q: 额度数据是公开的吗？**
-如果使用 GitHub Pages 托管，数据是公开可访问的（别人能看到你各平台的额度百分比）。如果你介意，可以用私有仓库 + 自建服务替代。数据里**不包含任何 API 密钥或登录凭证**——采集脚本会自动过滤掉敏感信息。部署前建议阅读 [隐私说明](docs/privacy.md)。
-
-**Q: Kindle 费电吗？**
-比正常待机费一些（屏幕常亮 + 定时联网）。有夜间省电模式，03:00–08:00 自动停止刷新。
-
-**Q: 我只用 Claude 一家，也能用吗？**
-能。在 `config.json` 里只开启 Claude 即可；其他默认卡片会显示未启用。如果只想保留一张卡片，可以再调整 `web/index.html` 的布局。
-
-**Q: 天气需要单独买 API 吗？**
-不需要。可以用免费的公共天气 API，Agent 会帮你配好。
-
-**Q: 页面断网后会显示什么？**
-
-页面会在本机保留最近一次通过校验的数据，网络临时失败时最多继续显示 30 分钟，并明确标记为缓存或旧值；更久的数据不会冒充实时结果。
-
-## 升级现有 Fork
-
-`0.1.1` 不改变 `config.json` 格式、默认四张卡片或 Kindle 页面入口。同步上游代码后运行：
+准备 Docker 和 KOReader Linux x86_64 AppImage，放到 `docker/koreader-sim/koreader.AppImage`，然后运行：
 
 ```bash
-npm run check
+npm run preview:koreader -- --build
+npm run preview:koreader -- --test
 ```
 
-检查通过后，重新运行采集与构建即可。同步前仍建议保留自己修改过的页面和配置备份。
+截图输出到 `state/koreader-preview/`，默认使用演示数据。准备步骤见 [Docker 预览说明](docs/koreader-plugin.md#docker-预览windows--macos--linux)。
 
-## 更多文档
+## 常用修改位置
 
+| 想改什么 | 文件 |
+| --- | --- |
+| 启用的数据源、展示顺序 | `config.json` |
+| Kindle 面板布局、字体、同步地址 | `kindle/koplugin/aiquota.koplugin/main.lua` |
+| 持续刷新逻辑 | `scripts/refresh-watch.cjs` |
+| 额度导出格式 | `scripts/export-kindle.cjs` |
+| 网页外观 | `web/index.html`、`web/style.css` |
+| 网页数据读取与渲染 | `web/dashboard-runtime.js` |
+
+## 文档与致谢
+
+本版本基于 Kindle AI Quota Dashboard 项目继续修改，保留电脑采集和静态站点发布思路，围绕自己的 KPW3 增加原生插件、额度排版和持续更新流程。感谢原项目与 KOReader 的贡献者。
+
+- [KOReader 插件安装与使用](docs/koreader-plugin.md)
 - [系统架构](docs/architecture.md)
 - [隐私说明](docs/privacy.md)
-- [Kindle 兼容性与恢复](docs/compatibility.md)
 - [故障排查](docs/troubleshooting.md)
-- [安全说明](SECURITY.md)
 - [参与贡献](CONTRIBUTING.md)
+
+## 想继续魔改怎么办
+让 ai agent 帮忙
 
 ## 许可证
 
 [MIT License](LICENSE)
-
----
-
-*这个项目最初是为了解决一个很朴素的需求：家里的 AI 太多了，每次查额度都得一个一个登进去看。不如让 Kindle 替我盯着，放在桌上一眼就知道。*
-
-*由社区贡献者共同维护。*

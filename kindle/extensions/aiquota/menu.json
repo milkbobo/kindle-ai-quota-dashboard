@@ -1,0 +1,19 @@
+{
+	"items": [
+	{
+		"name": "AI 额度面板",
+		"priority": 0,
+		"items": [
+		{
+			"name": "打开额度面板",
+			"priority": 1,
+			"action": "/mnt/us/extensions/aiquota/bin/launch.sh",
+			"params": "",
+			"exitmenu": false,
+			"status": false,
+			"internal": "status Launch KOReader with AI quota panel . . ."
+		}
+		]
+	}
+	]
+}

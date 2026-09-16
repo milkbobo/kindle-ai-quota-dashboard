@@ -1,0 +1,13 @@
+**
+!docker/
+!docker/koreader-sim/
+!docker/koreader-sim/Dockerfile
+!docker/koreader-sim/preview.sh
+!docker/koreader-sim/test-cloud.sh
+!docker/koreader-sim/koreader.AppImage
+!kindle/
+!kindle/koplugin/
+!kindle/koplugin/aiquota.koplugin/
+!kindle/koplugin/aiquota.koplugin/*.lua
+!examples/
+!examples/kindle.example.json

@@ -6,6 +6,8 @@ const { collectClaude } = require('./collectors/claude.cjs');
 const { collectCodex } = require('./collectors/codex.cjs');
 const { collectDeepSeek } = require('./collectors/deepseek.cjs');
 const { collectKimi } = require('./collectors/kimi.cjs');
+const { collectZai } = require('./collectors/zai.cjs');
+const { collectOpenAI } = require('./collectors/openai.cjs');
 const { ROOT, loadConfig } = require('./lib/config.cjs');
 const {
   isoBeijing,
@@ -14,7 +16,7 @@ const {
   writeAtomic,
 } = require('./lib/common.cjs');
 
-const SOURCE_NAMES = ['claude', 'codex', 'kimi', 'deepseek'];
+const SOURCE_NAMES = ['claude', 'codex', 'kimi', 'deepseek', 'zai', 'openai'];
 
 function readQuote(filePath) {
   if (!filePath) return null;
@@ -87,6 +89,8 @@ function demoSnapshot() {
   const afterHours = (hours) => isoBeijing(Date.now() + hours * 60 * 60 * 1000);
   return {
     updatedAt: now,
+    displayProviders: ['codex', 'zai'],
+    demo: true,
     weather: {
       ok: true,
       description: '晴',
@@ -119,7 +123,21 @@ function demoSnapshot() {
       codex: {
         ok: true,
         label: 'Codex',
-        windows: [{ name: '周', usedPct: 18, resetAt: afterHours(120) }],
+        windows: [
+          { name: '5小时', usedPct: 24, resetAt: afterHours(2.5) },
+          { name: '周', usedPct: 18, resetAt: afterHours(120) },
+        ],
+        fetchedAt: now,
+        error: null,
+      },
+      zai: {
+        ok: true,
+        label: 'Z.ai',
+        windows: [
+          { name: '5小时', usedPct: 42, resetAt: afterHours(3) },
+          { name: '每周', usedPct: 31, resetAt: afterHours(72) },
+          { name: '每月次数', usedPct: 12, resetAt: afterHours(360), detail: '120/1000 次' },
+        ],
         fetchedAt: now,
         error: null,
       },
@@ -142,23 +160,38 @@ function demoSnapshot() {
         fetchedAt: now,
         error: null,
       },
+      openai: {
+        ok: true,
+        label: 'ChatGPT',
+        windows: [
+          { name: '本月', usedPct: 36, resetAt: afterHours(200), detail: '$18.20 / $50' },
+        ],
+        balance: 6.8,
+        currency: 'USD',
+        detail: '本月已用 $18.20',
+        fetchedAt: now,
+        error: null,
+      },
     },
   };
 }
 
 async function realSnapshot(config) {
   const providers = config.providers || {};
-  const [claude, codex, kimi, deepseek] = await Promise.all([
+  const [claude, codex, kimi, deepseek, zai, openai] = await Promise.all([
     collectClaude(providers.claude),
     collectCodex(providers.codex),
     collectKimi(providers.kimi),
     collectDeepSeek(providers.deepseek),
+    collectZai(providers.zai),
+    collectOpenAI(providers.openai),
   ]);
   return {
     updatedAt: isoBeijing(),
+    displayProviders: config.displayProviders || ['codex', 'zai'],
     weather: readWeather(config.weatherFile),
     quote: readQuote(config.quoteFile),
-    sources: { claude, codex, kimi, deepseek },
+    sources: { claude, codex, kimi, deepseek, zai, openai },
   };
 }
 
@@ -202,6 +235,11 @@ function validateSnapshot(snapshot) {
       if (!Object.prototype.hasOwnProperty.call(source, 'balance')) {
         throw new Error('deepseek 缺少 balance');
       }
+    } else if (name === 'openai') {
+      const hasContent = Array.isArray(source.windows) && source.windows.length > 0 ||
+        Object.prototype.hasOwnProperty.call(source, 'balance') ||
+        typeof source.detail === 'string';
+      if (source.ok && !hasContent) throw new Error('openai 缺少 windows/balance/detail');
     } else if (!Array.isArray(source.windows)) {
       throw new Error(`${name} 缺少 windows`);
     }

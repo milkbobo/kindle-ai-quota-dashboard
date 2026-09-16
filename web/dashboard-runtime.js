@@ -18,7 +18,7 @@
     usingCache: false,
     requestId: 0
   };
-  var sourceNames = ['claude', 'codex', 'kimi', 'deepseek'];
+  var defaultProviders = ['codex', 'zai'];
   var weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 
   var ui = {
@@ -84,6 +84,16 @@
     if (name === 'deepseek') {
       return !source.ok || finiteNumber(source.balance);
     }
+    if (name === 'openai') {
+      var hasContent = finiteNumber(source.balance) || typeof source.detail === 'string' ||
+        (Array.isArray(source.windows) && source.windows.length > 0);
+      if (source.ok && !hasContent) return false;
+      if (!Array.isArray(source.windows)) return true;
+      for (index = 0; index < source.windows.length; index += 1) {
+        if (!validWindow(source.windows[index])) return false;
+      }
+      return true;
+    }
     if (!Array.isArray(source.windows)) return false;
     if (source.ok && !source.windows.length) return false;
     for (index = 0; index < source.windows.length; index += 1) {
@@ -100,7 +110,10 @@
 
   function validPayload(data) {
     var index;
-    if (!data || !validTime(data.updatedAt, false) || !data.sources || !validWeather(data.weather)) return false;
+    var sourceNames;
+    if (!data || !validTime(data.updatedAt, false) || !data.sources) return false;
+    sourceNames = Object.keys(data.sources);
+    if (!sourceNames.length) return false;
     for (index = 0; index < sourceNames.length; index += 1) {
       if (!validSource(sourceNames[index], data.sources[sourceNames[index]])) return false;
     }
@@ -208,7 +221,7 @@
       return;
     }
 
-    ui.textNode(status, '实时 · ' + lastClock);
+    ui.textNode(status, (state.latest.demo ? '演示数据 · ' : '实时 · ') + lastClock);
     ui.className(status, '');
     ui.textNode(alert, '');
     ui.className(alert, 'data-alert');
@@ -220,6 +233,7 @@
     ui.text('dtDate', now.getFullYear() + '年' + (now.getMonth() + 1) + '月' + now.getDate() + '日');
     ui.text('dtWeek', weekdays[now.getDay()]);
     updateFreshness();
+    if (state.latest) renderProviders(state.latest);
   }
 
   function queryValue(name) {
@@ -269,9 +283,9 @@
 
   function windowTitle(value) {
     var name = String(value || '');
-    if (/5小时|5H/i.test(name)) return '5H QUOTA';
-    if (/7天|周|WEEK/i.test(name)) return 'WEEKLY';
-    if (/月|MONTH/i.test(name)) return 'MONTHLY';
+    if (/5小时|5H/i.test(name)) return '5 小时额度';
+    if (/7天|周|WEEK/i.test(name)) return '每周额度';
+    if (/月|MONTH/i.test(name)) return /次数/.test(name) ? '每月工具调用' : '每月额度';
     return name || 'QUOTA';
   }
 
@@ -280,16 +294,16 @@
     var minutes;
     var days;
     var hours;
-    if (!value || !remaining) return '↻ 未提供刷新时间';
-    if (remaining <= 0) return '↻ 即将刷新';
+    if (!value || !timestamp(value)) return '未提供重置时间';
+    if (remaining <= 0) return '等待额度重置';
 
     minutes = Math.ceil(remaining / 60000);
     days = Math.floor(minutes / 1440);
     hours = Math.floor((minutes % 1440) / 60);
     minutes %= 60;
-    if (days) return '↻ ' + days + 'd' + (hours ? ' ' + hours + 'h' : '');
-    if (hours) return '↻ ' + hours + 'h' + twoDigits(minutes) + 'm';
-    return '↻ ' + minutes + 'm';
+    if (days) return days + '天' + (hours ? hours + '小时' : '') + '后重置';
+    if (hours) return hours + '小时' + (minutes ? minutes + '分' : '') + '后重置';
+    return minutes + '分钟后重置';
   }
 
   function showUnavailableQuota(rows) {
@@ -401,6 +415,64 @@
     }
   }
 
+  function escapeHtml(value) {
+    return String(value == null ? '' : value).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function renderProviders(data) {
+    var names = Array.isArray(data.displayProviders) && data.displayProviders.length
+      ? data.displayProviders : defaultProviders;
+    var labels = { codex: 'Codex', zai: 'Z.ai', claude: 'Claude', kimi: 'Kimi', deepseek: 'DeepSeek', openai: 'ChatGPT' };
+    var descriptions = { codex: 'OPENAI / CODEX', zai: 'Z.AI / GLM CODING PLAN', openai: 'OPENAI / API' };
+    var html = '';
+    var seen = {};
+    var count = 0;
+    names.forEach(function (name) {
+      if (typeof name !== 'string' || Object.prototype.hasOwnProperty.call(seen, name)) return;
+      seen[name] = true;
+      count += 1;
+      var source = data.sources[name];
+      var windows = source && source.ok ? source.windows || [] : [];
+      var stale = source && (source.stale || Date.now() - timestamp(source.fetchedAt) > 15 * 60000);
+      var high = windows.some(function (item) { return item.usedPct >= 90; });
+      var status = !source || source.disabled ? '未接入' : !source.ok ? '采集失败' : stale ? '旧数据' : high ? '额度紧张' : '已同步';
+      html += '<article class="q-card"><div class="q-head"><div class="q-identity">' +
+        '<div class="q-name"><span class="q-number mono">' + twoDigits(count) + '</span>' +
+        escapeHtml(labels[name] || (source && source.label) || name) + '</div><div class="q-provider">' +
+        escapeHtml(descriptions[name] || 'AI / QUOTA') + '</div></div><div class="q-state"><span class="badge' +
+        (stale || high || (source && !source.ok && !source.disabled) ? ' attention' : '') + '">' + status + '</span></div></div>';
+      windows.forEach(function (item) {
+        var pct = Math.round(item.usedPct);
+        html += '<div class="q-row"><div class="q-label"><span>' + escapeHtml(windowTitle(item.name)) +
+          '</span><span class="q-pct mono">' + pct + '%</span></div><div class="q-bar" role="meter" aria-label="' +
+          escapeHtml(item.name) + ' 已用额度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + pct +
+          '"><div class="q-bar-fill" style="width:' + item.usedPct + '%"></div></div><div class="q-refresh">' +
+          '剩余 ' + Math.round(100 - item.usedPct) + '% · ' + escapeHtml(remainingTime(item.resetAt)) +
+          (item.detail || item.detailText ? ' · ' + escapeHtml(item.detail || item.detailText) : '') +
+          (stale || item.stale ? ' · 最近一次有效值' : '') + '</div></div>';
+      });
+      if (!windows.length) {
+        var mainText = source && source.ok && finiteNumber(source.balance)
+          ? escapeHtml(source.currency || 'CNY') + ' ' + source.balance.toFixed(2)
+          : source && source.ok && typeof source.detail === 'string'
+            ? escapeHtml(source.detail)
+            : '--';
+        var subText = !source || source.disabled
+          ? '等待接入 · 尚无额度数据'
+          : !source.ok
+            ? '暂时无法获取额度 · 等待下次采集'
+            : finiteNumber(source.balance) ? '账户余额' : '按量计费 · 无固定额度窗口';
+        html += '<div class="q-empty"><strong class="mono">' + mainText +
+          '</strong><div class="q-refresh">' + escapeHtml(subText) + '</div></div>';
+      }
+      html += '</article>';
+    });
+    ui.html(ui.find('quotaGrid'), html);
+    ui.text('providerCount', twoDigits(count) + ' 项服务');
+    if (win.layoutQuotaPages) win.layoutQuotaPages();
+  }
+
   function present(data, fromCache) {
     var relativeNode;
     if (!validPayload(data)) return false;
@@ -412,6 +484,7 @@
     if (data.updatedAt !== state.renderedAt) {
       state.renderedAt = data.updatedAt;
       updateWeather(data.weather);
+      renderProviders(data);
       updateQuotaCard('cardClaude', data.sources.claude);
       updateQuotaCard('cardCodex', data.sources.codex);
       updateQuotaCard('cardKimi', data.sources.kimi);

@@ -9,12 +9,17 @@
     "node": ">=18"
   },
   "scripts": {
+    "preview:koreader": "node scripts/preview-koreader.cjs",
     "demo": "node src/collect.cjs --demo",
     "collect": "node src/collect.cjs",
     "build": "node scripts/build-site.cjs",
+    "deploy": "node scripts/deploy-pages.cjs",
     "serve": "node scripts/serve.cjs",
     "package:kindle": "node scripts/build-kpkg.cjs",
     "test": "node --test tests/core.test.cjs",
-    "check": "node scripts/check-public.cjs && node --test tests/core.test.cjs"
+    "check": "node scripts/check-public.cjs && node --test tests/core.test.cjs",
+    "refresh": "node src/collect.cjs && node scripts/export-kindle.cjs && node scripts/render-png.cjs && node scripts/deploy-pages.cjs",
+    "refresh:watch": "node scripts/refresh-watch.cjs",
+    "watch": "node scripts/refresh-watch.cjs 3"
   }
 }

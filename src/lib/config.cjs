@@ -6,6 +6,28 @@ const { readJson } = require('./common.cjs');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 
+// 本地 .env（KEY=VALUE）只作为兜底：已在环境变量里的值优先，不会覆盖。
+function loadLocalEnv() {
+  const envPath = path.join(ROOT, '.env');
+  let text;
+  try {
+    text = fs.readFileSync(envPath, 'utf8');
+  } catch {
+    return;
+  }
+  for (const line of text.split(/\r?\n/)) {
+    const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
+    if (!match || process.env[match[1]] !== undefined) continue;
+    let value = match[2];
+    if ((value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    process.env[match[1]] = value;
+  }
+}
+loadLocalEnv();
+
 function resolveFromRoot(value, fallback) {
   const target = String(value || fallback || '').trim();
   return path.isAbsolute(target) ? target : path.resolve(ROOT, target);
@@ -17,6 +39,11 @@ function validateConfig(config) {
   }
   if (config.providers && typeof config.providers !== 'object') {
     throw new Error('config.providers 必须是对象');
+  }
+  if (config.displayProviders !== undefined && (!Array.isArray(config.displayProviders) ||
+      !config.displayProviders.length || config.displayProviders.some((name) =>
+        typeof name !== 'string' || !/^[a-z][a-z0-9_-]*$/.test(name)))) {
+    throw new Error('displayProviders 必须是非空的服务名称数组');
   }
   const serialized = JSON.stringify(config);
   if (/"(?:apiKey|token|password|secret)"\s*:/i.test(serialized)) {

@@ -1,0 +1,10 @@
+{
+  "updated": 0,
+  "updatedText": "演示快照 / 非实时数据",
+  "items": [
+    { "name": "Codex · 5 小时额度", "used": 12, "detail": "剩余 88% · 14:30 重置" },
+    { "name": "Codex · 每周额度", "used": 38, "detail": "剩余 62% · 周一 09:00 重置" },
+    { "name": "Z.ai · 5 小时额度", "used": 24, "detail": "剩余 76% · 16:00 重置" },
+    { "name": "Z.ai · 每月工具调用", "used": 68, "detail": "剩余 32% · 已用 68 / 100 次" }
+  ]
+}

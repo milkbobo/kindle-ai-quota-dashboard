@@ -1,12 +1,25 @@
 {
   "outputDir": "state",
   "keepLocalHistory": false,
+  "displayProviders": ["codex", "zai"],
   "quoteFile": "config/quote.json",
   "weatherFile": "",
   "providers": {
+    "zai": {
+      "enabled": false,
+      "apiKeyEnv": "ZAI_API_KEY",
+      "baseUrl": "https://api.z.ai"
+    },
     "deepseek": {
       "enabled": false,
       "apiKeyEnv": "DEEPSEEK_API_KEY"
+    },
+    "openai": {
+      "enabled": false,
+      "apiKeyEnv": "OPENAI_API_KEY",
+      "baseUrl": "https://api.openai.com",
+      "monthlyBudgetUsd": 0,
+      "proxy": ""
     },
     "claude": {
       "enabled": false,

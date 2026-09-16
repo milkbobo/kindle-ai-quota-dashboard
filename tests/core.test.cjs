@@ -14,6 +14,7 @@ const {
   writeSnapshot,
 } = require('../src/collect.cjs');
 const { safeError } = require('../src/lib/common.cjs');
+const { buildOpenAiResult, collectOpenAI } = require('../src/collectors/openai.cjs');
 const { ROOT, validateConfig } = require('../src/lib/config.cjs');
 const { collectProblems } = require('../scripts/check-public.cjs');
 
@@ -80,7 +81,7 @@ test('snapshot writer emits JSON and old-browser JavaScript', () => {
 });
 
 test('browser runtime is valid JavaScript', () => {
-  for (const name of ['dashboard-runtime.js', 'app.js']) {
+  for (const name of ['dashboard-runtime.js', 'pagination.js']) {
     const result = spawnSync(process.execPath, ['--check', path.join(ROOT, 'web', name)], {
       encoding: 'utf8',
     });
@@ -146,6 +147,106 @@ test('browser runtime restores a valid cache and rejects older replacement data'
   older.updatedAt = '2025-01-01T00:00:00+08:00';
   runBrowserRuntime(older, storage);
   assert.equal(storage.get(cacheKey), cached, 'older data must not replace a newer cache');
+});
+
+test('dashboard accepts only Codex and Z.ai and renders every quota window', () => {
+  const snapshot = demoSnapshot();
+  snapshot.sources = { codex: snapshot.sources.codex, zai: snapshot.sources.zai };
+  delete snapshot.weather;
+  const { nodes } = runBrowserRuntime(snapshot, new Map());
+  const html = nodes.get('#quotaGrid').innerHTML;
+  assert.match(html, /Codex/);
+  assert.match(html, /Z.ai/);
+  assert.match(html, /每月工具调用/);
+  assert.match(html, /120\/1000 次/);
+  assert.equal((html.match(/role="meter"/g) || []).length, 5);
+  assert.doesNotMatch(html, /Claude|DeepSeek|Kimi/);
+});
+
+test('dashboard distinguishes missing, stale, exhausted and malformed quota data', () => {
+  const snapshot = demoSnapshot();
+  delete snapshot.sources.zai;
+  snapshot.sources.codex.stale = true;
+  snapshot.sources.codex.windows[0].usedPct = 100;
+  let result = runBrowserRuntime(snapshot, new Map());
+  let html = result.nodes.get('#quotaGrid').innerHTML;
+  assert.match(html, /未接入/);
+  assert.match(html, /旧数据/);
+  assert.match(html, /剩余 0%/);
+  snapshot.sources.codex.stale = false;
+  snapshot.sources.codex.windows[0].detailText = '<script>alert(1)</script>';
+  result = runBrowserRuntime(snapshot, new Map());
+  html = result.nodes.get('#quotaGrid').innerHTML;
+  assert.match(html, /额度紧张/);
+  assert.match(html, /&lt;script&gt;/);
+  assert.doesNotMatch(html, /<script>/);
+  snapshot.sources.codex.windows[0].usedPct = 101;
+  const storage = new Map();
+  runBrowserRuntime(snapshot, storage);
+  assert.equal(storage.size, 0, 'invalid percentage must not enter the cache');
+});
+
+test('displayProviders enables additional services and Z.ai retains last known good quotas', () => {
+  const previous = demoSnapshot();
+  const snapshot = demoSnapshot();
+  snapshot.displayProviders = ['zai', 'codex', 'kimi'];
+  snapshot.sources.zai = { ok: false, label: 'Z.ai', windows: [], fetchedAt: snapshot.updatedAt, error: 'timeout' };
+  preserveLastKnownGood(snapshot, previous);
+  assert.equal(snapshot.sources.zai.stale, true);
+  const html = runBrowserRuntime(snapshot, new Map()).nodes.get('#quotaGrid').innerHTML;
+  assert.ok(html.indexOf('Z.ai') < html.indexOf('Codex'));
+  assert.match(html, /Kimi/);
+  assert.throws(() => validateConfig({ displayProviders: 'codex' }), /displayProviders/);
+});
+
+test('openai collector reports disabled and missing key without touching the network', async () => {
+  const disabled = await collectOpenAI({ enabled: false });
+  assert.equal(disabled.ok, false);
+  assert.equal(disabled.disabled, true);
+  const missing = await collectOpenAI({ enabled: true, apiKeyEnv: 'OPENAI_API_KEY_TEST_MISSING' });
+  assert.equal(missing.ok, false);
+  assert.match(missing.error, /OPENAI_API_KEY_TEST_MISSING/);
+});
+
+test('openai result prefers monthly window, then balance, then usage detail', () => {
+  const costs = { total_cost: 3.5 };
+  const withLimit = buildOpenAiResult({
+    costs,
+    subscription: { hard_limit_usd: 50 },
+    grants: null,
+    now: new Date('2026-09-14T00:00:00Z'),
+  });
+  assert.equal(withLimit.windows.length, 1);
+  assert.equal(withLimit.windows[0].name, '本月');
+  assert.equal(withLimit.windows[0].usedPct, 7);
+  assert.match(withLimit.windows[0].detail, /\$3\.50 \/ \$50\.00/);
+
+  const withBudget = buildOpenAiResult({ costs, monthlyBudgetUsd: 10 });
+  assert.equal(withBudget.windows[0].usedPct, 35);
+
+  const grantsOnly = buildOpenAiResult({ costs: null, grants: { total_available: 6.254 } });
+  assert.equal(grantsOnly.ok, true);
+  assert.equal(grantsOnly.balance, 6.25);
+  assert.equal(grantsOnly.windows.length, 0);
+
+  const costsOnly = buildOpenAiResult({ costs });
+  assert.equal(costsOnly.windows.length, 0);
+  assert.equal(costsOnly.balance, undefined);
+  assert.match(costsOnly.detail, /本月已用 \$3\.50/);
+
+  assert.throws(
+    () => buildOpenAiResult({ costs: null, subscription: null, grants: null }),
+    /可识别/,
+  );
+});
+
+test('dashboard renders the ChatGPT card from displayProviders', () => {
+  const snapshot = demoSnapshot();
+  snapshot.displayProviders = ['openai'];
+  const html = runBrowserRuntime(snapshot, new Map()).nodes.get('#quotaGrid').innerHTML;
+  assert.match(html, /ChatGPT/);
+  assert.match(html, /本月/);
+  assert.doesNotMatch(html, /Codex|Z\.ai/);
 });
 
 test('public checker skips ignored files on Windows paths but rejects exposed data', () => {

@@ -7,7 +7,7 @@ const { ROOT } = require('../src/lib/config.cjs');
 const webDir = path.join(ROOT, 'web');
 const stateDir = path.join(ROOT, 'state');
 const distDir = path.join(ROOT, 'dist');
-const required = ['index.html', 'dashboard-runtime.js'];
+const required = ['index.html', 'dashboard-runtime.js', 'pagination.js', 'style.css'];
 
 for (const name of required) {
   const source = path.join(webDir, name);
@@ -27,6 +27,11 @@ for (const name of required) {
 }
 for (const name of ['data.json', 'data.js']) {
   fs.copyFileSync(path.join(stateDir, name), path.join(distDir, name));
+}
+// 可选产物：KOReader 插件云端同步用的 kindle.json 和渲染好的仪表盘图片（有就带上）
+for (const name of ['kindle.json', 'dashboard.png', 'dashboard-gray.png']) {
+  const source = path.join(stateDir, name);
+  if (fs.existsSync(source)) fs.copyFileSync(source, path.join(distDir, name));
 }
 const endpoint = process.env.DASHBOARD_URL
   ? process.env.DASHBOARD_URL.replace(/\/+$/, '') + '/data.js'
