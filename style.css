@@ -1,0 +1,54 @@
+* { box-sizing: border-box; }
+html, body { width: 100%; height: 100%; margin: 0; background: #fff; color: #111; }
+body { font: 16px Arial, "Noto Sans CJK SC", "Microsoft YaHei", sans-serif; overflow: hidden; }
+.dashboard { position: absolute; inset: 0; padding: 3.3em; display: flex; flex-direction: column; gap: 1.15em; }
+.mono { font-family: Arial, sans-serif; font-variant-numeric: tabular-nums; }
+.masthead { border-top: .3em solid #111; padding-top: 1em; flex: none; }
+.eyebrow { font-size: 1.25em; letter-spacing: .12em; font-weight: bold; }
+.edition { float: right; font-size: .85em; }
+.top-row { display: flex; justify-content: space-between; align-items: center; margin: 2.2em 0 1em; gap: 1em; }
+.title-block { min-width: 0; }
+h1 { font-size: 4em; line-height: 1.1; margin: 0 0 .4em; letter-spacing: -.03em; }
+.subtitle { font-size: 1.4em; }
+.datetime-card { text-align: right; flex: none; }
+.dt-time { font-size: 3.7em; line-height: 1; font-weight: bold; letter-spacing: -.04em; }
+.dt-meta { font-size: 1.2em; margin-top: 1em; }
+#dtWeek { margin-left: .5em; }
+.overview { flex: none; border-top: .1em solid #111; border-bottom: .1em solid #111; padding: 1em 0; font-size: 1.3em; }
+.overview-right { float: right; }
+.data-alert { display: none; border-left: .3em solid #111; padding-left: .7em; font-size: 1.2em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: none; }
+.data-alert.on { display: block; }
+#quotaGrid { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 1.3em; }
+.q-card { border: .13em solid #111; padding: 1.4em; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.q-head { display: flex; justify-content: space-between; align-items: center; gap: 1em; border-bottom: 1px solid #888; padding-bottom: .8em; flex: none; }
+.q-identity { min-width: 0; }
+.q-name { font-size: 2.2em; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.q-number { display: inline-block; font-size: .48em; margin-right: .8em; vertical-align: .2em; }
+.q-provider { font-size: 1em; margin-top: .4em; }
+.q-state { flex: none; }
+.badge { display: inline-block; font-size: 1.15em; border: 1px solid #111; padding: .3em .6em; white-space: nowrap; }
+.badge.attention { background: #111; color: #fff; }
+.q-row { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; padding-top: .5em; }
+.q-label { display: flex; align-items: center; justify-content: space-between; gap: .5em; margin-bottom: .5em; }
+.q-label span { font-size: 1.5em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.q-label .q-pct { font-size: 2.6em; font-weight: bold; flex: none; }
+.q-bar { height: 1em; flex: none; border: 1px solid #111; background: white; }
+.q-bar-fill { height: 100%; background: #111; max-width: 100%; }
+.q-refresh { margin-top: .6em; font-size: 1.2em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.q-empty { flex: 1; min-height: 0; display: flex; justify-content: center; flex-direction: column; }
+.q-empty strong { font-size: 2.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pagination { display: flex; justify-content: space-between; align-items: center; flex: none; }
+.pagination button { font: inherit; font-size: 1.3em; color: #111; background: white; border: 1px solid #111; padding: .5em 1em; min-height: 2.6em; cursor: pointer; }
+.pagination button:disabled { color: #777; border-color: #aaa; cursor: default; }
+.pagination button:focus-visible { outline: 3px solid #111; outline-offset: 2px; }
+#pageLabel { font-size: 1.2em; }
+.footer { border-top: .2em solid #111; padding-top: .8em; font-size: 1.1em; flex: none; display: flex; justify-content: space-between; gap: 1em; }
+.footer > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (orientation: landscape) {
+  .dashboard { padding: 1.6em 3em; gap: .7em; }
+  .top-row { margin: .8em 0; }
+  h1 { font-size: 2.8em; margin-bottom: .2em; }
+  .dt-time { font-size: 2.8em; }
+  #quotaGrid { flex-direction: row; }
+  .q-card { min-width: 0; }
+}
