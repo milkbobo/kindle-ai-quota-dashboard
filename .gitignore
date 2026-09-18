@@ -21,6 +21,7 @@ screenshots/private/
 .kimi-code/
 .idea/
 .vscode/
+.workbuddy/
 node_modules/
 
 # Local credentials and machine-specific configuration

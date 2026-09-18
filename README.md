@@ -96,7 +96,7 @@
 "displayProviders": ["codex", "zai"]
 ```
 
-- Codex：将 `providers.codex.enabled` 设为 `true`，准备好本机已登录的 Codex CLI；需要指定路径时设置 `CODEX_CLI_PATH` 环境变量。
+- Codex：将 `providers.codex.enabled` 设为 `true`，准备好本机已登录的 Codex CLI。采集器会自动找到 Codex 桌面版的 CLI（内置包、它自己下载的副本、沙箱副本都会找），桌面版升级换目录也不用改配置；只有想固定用某个 CLI 时才需要设置 `CODEX_CLI_PATH`。
 - Z.ai：将 `providers.zai.enabled` 设为 `true`，在运行命令的环境中设置 `ZAI_API_KEY`。
 - 其他采集器配置见 [配置模板](config.example.json) 和 [系统架构](docs/architecture.md)。
 
@@ -116,9 +116,11 @@ npm run refresh
 
 | 文件 | 用途 |
 | --- | --- |
-| `data.json` / `data.js` | 网页额度数据 |
+| `data.js` | 网页额度数据 |
 | `kindle.json` | KOReader 插件同步数据 |
-| `dashboard.png` / `dashboard-gray.png` | 电脑渲染的面板图片 |
+| `dashboard-gray.png` | 电脑渲染的灰阶面板图片 |
+
+`state/data.json` 和 `state/dashboard.png` 仅保留在电脑本地，不上传 Pages。发布时会重建输出目录，移除上次发布的多余文件。
 
 ### 3. 安装 Kindle 插件
 
@@ -162,7 +164,8 @@ npm run refresh:watch       # 每轮结束后等待 10 分钟
 npm run refresh:watch -- 5  # 自定义为 5 分钟
 ```
 
-Kindle 插件打开时会先显示本地快照，再尝试云端同步；面板打开期间约每 **5 分钟**拉取一次，每分钟重新读取本地数据并更新时钟。联网失败时可继续显示已有快照，超过 **15 分钟**会标记为旧数据。休眠和唤醒沿用 KOReader 行为。
+Kindle 插件打开时会先显示本地快照，再尝试云端同步；面板打开期间每 **5 分钟**拉取一次并重读本地快照，
+**只在数据真的变化时才刷新墨水屏**（面板不打时钟，所以不需要每分钟刷屏，省电）。联网失败时可继续显示已有快照，超过 **15 分钟**会标记为旧数据。面板打开期间**不自动休眠**（底部显示「已禁止休眠」），同时**关闭前光**省电（底部显示「前光已关」）；关闭面板即恢复系统的正常休眠行为并按原亮度点回前光。**按电源键仍可手动息屏**（默认软模式）。这些行为都能在 KOReader 菜单 → 工具 → AI 额度 里单独关掉。
 
 ## 不连接 Kindle，也能预览
 

@@ -7,8 +7,8 @@
 		{
 			"name": "打开额度面板",
 			"priority": 1,
-			"action": "/mnt/us/extensions/aiquota/bin/launch.sh",
-			"params": "",
+			"action": "/bin/sh",
+			"params": "/mnt/us/extensions/aiquota/bin/launch.sh",
 			"exitmenu": false,
 			"status": false,
 			"internal": "status Launch KOReader with AI quota panel . . ."

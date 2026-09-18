@@ -13,23 +13,27 @@ for (const name of required) {
   const source = path.join(webDir, name);
   if (!fs.existsSync(source)) throw new Error(`缺少网页文件：${source}`);
 }
-for (const name of ['data.json', 'data.js']) {
+for (const name of ['data.js']) {
   const source = path.join(stateDir, name);
   if (!fs.existsSync(source)) {
     throw new Error(`缺少 ${source}。先运行 npm run demo 或 npm run collect`);
   }
 }
 
-fs.rmSync(distDir, { recursive: true, force: true });
 fs.mkdirSync(distDir, { recursive: true });
+// 保留目录本身，避免 Windows 中终端占用 dist 时无法删除目录。
+for (const name of fs.readdirSync(distDir)) {
+  fs.rmSync(path.join(distDir, name), { recursive: true, force: true });
+}
 for (const name of required) {
   fs.copyFileSync(path.join(webDir, name), path.join(distDir, name));
 }
-for (const name of ['data.json', 'data.js']) {
+for (const name of ['data.js']) {
   fs.copyFileSync(path.join(stateDir, name), path.join(distDir, name));
 }
-// 可选产物：KOReader 插件云端同步用的 kindle.json 和渲染好的仪表盘图片（有就带上）
-for (const name of ['kindle.json', 'dashboard.png', 'dashboard-gray.png']) {
+// 仅发布展示所需文件；原始 data.json 和彩色 dashboard.png 留在 state/。
+// 保留插件同步 JSON 和灰阶图片入口。
+for (const name of ['kindle.json', 'dashboard-gray.png']) {
   const source = path.join(stateDir, name);
   if (fs.existsSync(source)) fs.copyFileSync(source, path.join(distDir, name));
 }

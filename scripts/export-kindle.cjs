@@ -4,7 +4,8 @@
 //
 // 用法：
 //   1. 先按 config.example.json 建好 config.json，打开 codex / zai 两个数据源
-//   2. 设置环境变量：ZAI_API_KEY（z.ai 的 key）、CODEX_CLI_PATH（可选，codex 不在 PATH 时填）
+//   2. 设置环境变量：ZAI_API_KEY（z.ai 的 key）。（CODEX_CLI_PATH 只在想固定某个 CLI 时才填，
+//      默认由采集器自动发现 Codex 桌面版的 CLI）
 //   3. node scripts/export-kindle.cjs
 //   4. 把生成的 state/kindle.json 拷到 Kindle 的 /mnt/us/aiquota/data.json
 //
@@ -67,10 +68,15 @@ async function main() {
     collectZai(providers.zai),
   ]);
 
-  const items = [
-    ...itemsFromSource(codex),
-    ...itemsFromSource(zai),
-  ];
+  // 卡片顺序由 config.displayProviders 决定（与网页版同一处配置）：
+  // 想换顺序/换展示项只改 config.json，不用动代码。默认 codex → zai。
+  const collected = { codex, zai };
+  const preferred = (Array.isArray(config.displayProviders) && config.displayProviders.length
+    ? config.displayProviders
+    : ['codex', 'zai']
+  ).filter((name) => collected[name]);
+  const order = preferred.length ? preferred : ['codex', 'zai'];
+  const items = order.flatMap((name) => itemsFromSource(collected[name]));
 
   const snapshot = {
     updated: Math.floor(Date.now() / 1000),
