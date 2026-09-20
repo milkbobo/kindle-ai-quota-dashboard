@@ -87,6 +87,20 @@ async function main() {
   };
   delete snapshot.weather;
 
+  // 节假日表（含调休）：插件据此判断"工作日"，决定每天定时开屏要不要触发。
+  // 顺手在缓存过期/缺今年数据时补一次（联网失败也不影响发布，插件会退化成"周一~周五"）。
+  try {
+    const { ensureHolidays, loadHolidayTable } = require('../src/lib/holidays.cjs');
+    await ensureHolidays();
+    const holidays = loadHolidayTable();
+    if (holidays && Object.keys(holidays).length) {
+      snapshot.holidays = holidays;
+      process.stdout.write(`节假日表已随快照发布（${Object.keys(holidays).length} 条）\n`);
+    }
+  } catch (error) {
+    process.stdout.write(`节假日表暂不可用（用周一~周五兜底）：${error && error.message}\n`);
+  }
+
   const outputDir = config.outputDir || path.join(ROOT, 'state');
   const outFile = path.join(outputDir, 'kindle.json');
   writeAtomic(outFile, `${JSON.stringify(snapshot, null, 2)}\n`);

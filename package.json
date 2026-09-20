@@ -20,6 +20,8 @@
     "check": "node scripts/check-public.cjs && node --test tests/core.test.cjs",
     "refresh": "node src/collect.cjs && node scripts/export-kindle.cjs && node scripts/render-png.cjs && node scripts/deploy-pages.cjs",
     "refresh:watch": "node scripts/refresh-watch.cjs",
-    "watch": "node scripts/refresh-watch.cjs 2"
+    "watch": "node scripts/refresh-watch.cjs 2",
+    "holidays": "node scripts/fetch-holidays.cjs",
+    "watch:loop": "node scripts/watch-loop.cjs"
   }
 }

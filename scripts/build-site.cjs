@@ -21,9 +21,16 @@ for (const name of ['data.js']) {
 }
 
 fs.mkdirSync(distDir, { recursive: true });
-// 保留目录本身，避免 Windows 中终端占用 dist 时无法删除目录。
+// 清理上一轮产物：**跳过 .git** —— 它是部署用的私有仓库（deploy-pages 在里面提交推送），
+// 而且在 Windows 上常被文件保护/占用，rmSync 直接 EPERM 会让整个构建失败（踩过）。
+// 其它文件清理失败也只警告不中断：构建的目的只是把新文件写进去。
 for (const name of fs.readdirSync(distDir)) {
-  fs.rmSync(path.join(distDir, name), { recursive: true, force: true });
+  if (name === '.git') continue;
+  try {
+    fs.rmSync(path.join(distDir, name), { recursive: true, force: true });
+  } catch (error) {
+    process.stderr.write(`清理 dist/${name} 失败（忽略，继续构建）：${error.code || error.message}\n`);
+  }
 }
 for (const name of required) {
   fs.copyFileSync(path.join(webDir, name), path.join(distDir, name));

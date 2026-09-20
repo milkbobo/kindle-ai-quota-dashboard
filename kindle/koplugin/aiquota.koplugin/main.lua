@@ -52,6 +52,8 @@ local DAILY_WAKE_SETTING = "aiquota_daily_wake"     -- "HH:MM"；未设/空 = �
 local WAKE_WEEKDAYS_SETTING = "aiquota_daily_wake_weekdays" -- 存 false = 周末也开屏（默认只工作日）
 -- 记录最近一次刷新的类型，写进取证日志，方便事后核对"到底有没有闪屏"
 local last_refresh = "-"
+-- 最近一次从快照里读到的节假日表（loadData 会更新它）；判断工作日用，见 isWorkingDay()
+local snapshot_holidays = nil
 local share_ok, PluginShare = pcall(require, "pluginshare")
 if not share_ok then PluginShare = nil end
 local keep_awake = nil  -- 非 nil 表示当前正持有常亮/熄灯；保存了需要还原的旧值
@@ -134,6 +136,17 @@ end
 --   resume  = 唤醒（插 USB/按电源/开磁吸套都会走这里）
 --   open / close / re-* = 常亮开关状态与"被重置后重新压下"的记录
 local LOG_PATH = os.getenv("AIQUOTA_LOG_PATH") or "/mnt/us/aiquota/sleep.log"
+
+-- ★ 踩过的坑：KOReader 里 `Device.isEmulator` 是字符串标志（"yes" / "no"），
+-- 而 Lua 里非空字符串恒为真 —— 写成 `if Device.isEmulator then` 会让**真机也被当成模拟器**：
+-- 定时息屏只画了黑屏、从不真休眠（实测后果：整夜清醒，15 小时掉 18% 电，RTC 闹钟也不会触发）。
+-- 必须像 KOReader 自己那样用方法判断：`Device:isEmulator()`。
+local function isEmulator()
+    local method = Device.isEmulator
+    if type(method) ~= "function" then return false end
+    local ok, result = pcall(method, Device)
+    return ok and result == true
+end
 
 -- 电量百分比：给"息屏到底省不省电"留证据（用 KOReader 自己的 API，内部 60 秒缓存，不会频繁读硬件）
 local function batteryText()
@@ -247,20 +260,56 @@ local function nowEpoch()
 end
 
 -- Lua 的 %w：0=周日 … 6=周六
-local function isWeekend(epoch)
+local function isWeekendDay(epoch)
     local w = tonumber(os.date("%w", epoch))
     return w == 0 or w == 6
 end
 
-local function secondsUntil(hh, mm, extra_sec, weekdays_only)
+-- 判断某天是不是**工作日**：优先看快照里带的节假日表（含法定假日与调休），
+-- 表里没有该日期才退化成"周一~周五"。
+--   快照字段形如 "holidays": { "2026-10-01": true, "2026-09-20": false }
+--   true = 放假（不算工作日）；false = 调休上班（算工作日，哪怕是周六周日）
+-- 表由 PC 端 scripts/fetch-holidays.cjs 从国务院公告整理后随 kindle.json 发布（见 src/lib/holidays.cjs）。
+local function isWorkingDay(epoch)
+    local day = os.date("%Y-%m-%d", epoch)
+    local special = snapshot_holidays and snapshot_holidays[day]
+    if special ~= nil then return special == false end
+    return not isWeekendDay(epoch)
+end
+
+-- 快照里节假日表的条数（写进取证日志，用来确认设备确实拿到了表）
+local function holidayCount()
+    if type(snapshot_holidays) ~= "table" then return 0 end
+    local n = 0
+    for _ in pairs(snapshot_holidays) do n = n + 1 end
+    return n
+end
+
+-- 重启探测器：读 Linux 的 boot_id 与开机时长。
+-- 用途：排查"退出 KOReader 后设备像重启了"这类怀疑——每次 KOReader 启动都记一行，
+-- boot_id 变了 = 设备真的重启过；没变（uptime 很大）= 只是框架 UI 重来一遍。
+local function bootFingerprint()
+    local function firstLine(path)
+        local f = io.open(path, "r")
+        if not f then return nil end
+        local line = f:read("*l")
+        f:close()
+        return line
+    end
+    local id = firstLine("/proc/sys/kernel/random/boot_id")
+    local uptime = firstLine("/proc/uptime")
+    return (id and id:sub(1, 8) or "?"), (uptime and uptime:match("^([%d%.]+)") or "?")
+end
+
+local function secondsUntil(hh, mm, extra_sec, workdays_only)
     local now = nowEpoch()
     local t = os.date("*t", now)
     local target = os.time{ year = t.year, month = t.month, day = t.day,
         hour = hh, min = mm, sec = extra_sec or 0 }
     if target <= now then target = target + 24 * 3600 end
-    if weekdays_only then
+    if workdays_only then
         local guard = 0
-        while isWeekend(target) and guard < 10 do
+        while not isWorkingDay(target) and guard < 60 do
             target = target + 24 * 3600
             guard = guard + 1
         end
@@ -492,6 +541,10 @@ local function loadData()
         if type(item) == "table" then table.insert(items, item) end
     end
     data.items = items
+    -- 顺手把节假日表记下来（判断工作日用；表里没有的日期会退化成周一~周五）
+    if type(data.holidays) == "table" then
+        snapshot_holidays = data.holidays
+    end
     return data
 end
 
@@ -536,6 +589,20 @@ function Panel:init()
             logEvent("tick")
             -- 定时息屏兜底：休眠期间单调时钟不走，定时器可能被推迟，这里每 5 分钟核一次钟点
             if self.owner and self.owner.maybeDailySleep then self.owner:maybeDailySleep() end
+            -- 息屏状态下这个定时任务居然还能跑 → 说明设备其实没睡（真休眠时定时器不会执行）。
+            -- 补发 suspend 并留证据；模拟器不会真休眠，属预期，跳过。
+            if self.sleeping then
+                if isEmulator() then
+                    self.sleep_retries = nil
+                elseif (self.sleep_retries or 0) < 3 then
+                    self.sleep_retries = (self.sleep_retries or 0) + 1
+                    logEvent("auto-sleep", "息屏后仍在运行 → 补发 suspend（第 " .. self.sleep_retries .. " 次）")
+                    UIManager:suspend()
+                elseif self.sleep_retries == 3 then
+                    self.sleep_retries = 4
+                    logEvent("auto-sleep", "补发 3 次仍未休眠，放弃（可能 powerd 拒绝，例如正在充电）")
+                end
+            end
             -- 只有"屏幕上真会有变化"才推墨水屏：数据/状态行变化、或跨天后日期变了。
             -- 没变化就一点都不刷 —— 原来每分钟刷一次，现在是平均每 5 分钟一次（且只在有变化时）。
             local changed = previous == nil
@@ -673,6 +740,7 @@ function Panel:onResume()
     if self.sleeping then
         -- 从"已息屏"黑屏回来：清掉标记并整屏重画（刻意的一次闪，重新画出仪表盘）
         self.sleeping = nil
+        self.sleep_retries = nil
         last_refresh = "full(唤醒)"
         UIManager:setDirty(self, "full")
     end
@@ -708,14 +776,12 @@ function Panel:paintTo(bb, x, y)
     end
     -- 定时息屏后的画面：墨水屏断电会保留最后一帧，所以必须自己画一屏"已休眠"，
     -- 否则看起来就像没关掉（一直显示着仪表盘）。
+    -- 故意**不画时间**：这屏是静态的，画上实时时间没有任何好处，还容易让人以为它需要刷新。
     if self.sleeping then
         rect(0, 0, w, h, BB.COLOR_BLACK)
         local top = math.floor(h * 0.42)
         text("已息屏", pad, top, iw, math.floor(120 * s), 72, true, false, BB.COLOR_WHITE)
-        local shh, smm = dailySleepTime()
-        local line2 = os.date("%m-%d %H:%M") .. (shh and string.format("（每日 %02d:%02d 自动息屏）", shh, smm) or "（手动息屏）")
-        text(line2, pad, top + math.floor(150 * s), iw, math.floor(40 * s), 26, false, false, BB.COLOR_WHITE)
-        text("按电源键即可唤醒", pad, top + math.floor(210 * s), iw, math.floor(40 * s), 26, false, false, BB.COLOR_WHITE)
+        text("按电源键即可唤醒", pad, top + math.floor(160 * s), iw, math.floor(40 * s), 26, false, false, BB.COLOR_WHITE)
         last_refresh = "full(息屏画面)"
         logger.info("aiquota: sleep screen painted")
         return
@@ -844,11 +910,12 @@ function Aiquota:sleepNow(reason)
     logEvent("auto-sleep", reason or "")
     -- 睡之前把明早的开屏闹钟排好（挂起事件里也会排一次，双保险）
     self:armDailyWake("定时息屏")
-    -- 等墨水屏把"已息屏"那屏刷完再睡；模拟器没有真实休眠，跳过
+    -- 等墨水屏把"已息屏"那屏刷完再请求休眠（真机上 = 模拟电源键 → powerd 进 suspend）
     UIManager:scheduleIn(1.5, function()
-        if Device.isEmulator then
-            logEvent("auto-sleep", "模拟器：跳过 suspend")
+        if isEmulator() then
+            logEvent("auto-sleep", "模拟器没有真休眠，跳过 suspend")
         else
+            logEvent("auto-sleep", "已请求 suspend")
             UIManager:suspend()
         end
     end)
@@ -984,6 +1051,22 @@ function Aiquota:init()
         self:scheduleDailySleep()
     end
     self:scheduleDailySleep()
+    -- 开机先把关键能力写进取证日志（出问题时一眼看出是能力缺失还是逻辑问题）：
+    --   isEmulator 必须为 false（它是字符串标志，只能用方法判断——踩过坑，见 isEmulator() 注释）
+    --   wakeup_mgr 有值才支持 RTC 定时开屏；canSuspend 为真才能真休眠
+    --   holidays=N 是快照里带的节假日条数（0 = 还没读到快照，工作日判断会退化成周一~周五）
+    pcall(loadData)  -- 先读一次快照，好把节假日表带出来
+    local boot_id, uptime = bootFingerprint()
+    logEvent("boot", string.format("emulator=%s wakeup_mgr=%s canSuspend=%s sleep=%s wake=%s 今天工作日=%s holidays=%d boot_id=%s uptime=%ss",
+        tostring(isEmulator()),
+        tostring(Device.wakeup_mgr ~= nil),
+        tostring(Device.canSuspend ~= nil and Device:canSuspend() or "?"),
+        tostring(dailySleepTime() and "on" or "off"),
+        tostring(dailyWakeTime() and "on" or "off"),
+        tostring(isWorkingDay(os.time())),
+        holidayCount(),
+        boot_id,
+        uptime))
     -- 开机就先排一次 RTC 唤醒（真正确认在挂起时还会再排一次）
     if self.armDailyWake then self:armDailyWake("KOReader 启动") end
     if os.getenv("AIQUOTA_AUTOSHOW") then
@@ -1070,12 +1153,28 @@ function Aiquota:addToMainMenu(menu_items)
                   end
               end },
             { text = "立即清残影（整屏闪一次）",
-              enabled_func = function() return self.panel ~= nil end,
               callback = function()
-                  if self.panel then
-                      last_refresh = "full(手动)"
-                      UIManager:setDirty(self.panel, "full")
-                  end
+                  -- 注意：菜单只能在面板没打开时点到（面板是全屏模态，开着就点不到菜单），
+                  -- 所以这里先开面板再闪，别用 enabled_func 去卡"面板必须已打开"——那样永远点不动。
+                  if not self.panel then self:showPanel() end
+                  UIManager:scheduleIn(2, function()
+                      if self.panel then
+                          last_refresh = "full(手动清残影)"
+                          UIManager:setDirty(self.panel, "full")
+                      end
+                  end)
+              end },
+            { text = "立即息屏（测试用：画黑屏并真休眠）",
+              callback = function()
+                  -- 用来当场验证"真的休眠了"：按电源键唤醒后，取证日志里应该看到
+                  -- auto-sleep → suspend → resume 三行，而且休眠期间不再有 tick。
+                  if not self.panel then self:showPanel() end
+                  UIManager:scheduleIn(2, function()
+                      if self.panel then
+                          self.panel.sleep_retries = nil
+                          self:sleepNow("手动测试")
+                      end
+                  end)
               end },
             self:timeMenuItem("每天定时息屏", DAILY_SLEEP_SETTING, dailySleepTime, function()
                 -- 改了时间就允许今天按新时间生效
@@ -1085,10 +1184,12 @@ function Aiquota:addToMainMenu(menu_items)
             self:timeMenuItem("每天定时开屏", DAILY_WAKE_SETTING, dailyWakeTime, function()
                 self:armDailyWake("改了时间")
             end),
-            { text = "开屏只在工作日（周一至周五）",
+            { text = "开屏只在工作日（尊重法定节假日与调休）",
               checked_func = function() return wakeWeekdaysOnly() end,
               callback = function()
-                  -- 默认勾上：周六周日不自动开屏（想周末也开就取消勾选）
+                  -- 默认勾上：法定假日与周末不自动开屏，但调休上班的周末会照常开。
+                  -- 节假日表随快照发布（PC 端 scripts/fetch-holidays.cjs 从国务院公告整理）；
+                  -- 表里没有的日期退化成"周一~周五"。
                   if not G_reader_settings then return end
                   if wakeWeekdaysOnly() then
                       G_reader_settings:saveSetting(WAKE_WEEKDAYS_SETTING, false)
