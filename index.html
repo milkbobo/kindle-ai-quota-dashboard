@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>AI 额度监控</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="dashboard">
+<header class="masthead">
+  <div class="eyebrow">AI / QUOTA JOURNAL <span class="edition">PAPERWHITE · 07</span></div>
+  <div class="top-row">
+    <div class="title-block"><h1>算力有数。</h1><div class="subtitle">AI 额度监控 · 让每一次专注心中有数</div></div>
+    <div class="datetime-card"><div class="dt-time mono" id="dtTime">--:--</div><div class="dt-meta"><span id="dtDate">----年--月--日</span><span id="dtWeek">---</span></div></div>
+  </div>
+</header>
+<div class="overview"><span id="providerCount">02 项服务</span> · 用量一览<span class="overview-right">黑条 / 已用额度 · 每 3 分钟同步</span></div>
+<div class="data-alert" id="dataAlert" role="status"></div>
+<section id="quotaGrid" aria-label="AI 服务额度">
+  <article class="q-card"><div class="q-name">01 / Codex</div><div class="q-empty"><strong>--</strong>等待额度数据</div></article>
+  <article class="q-card"><div class="q-name">02 / Z.ai</div><div class="q-empty"><strong>--</strong>等待额度数据</div></article>
+</section>
+<nav class="pagination" aria-label="额度翻页"><button id="prevPage" type="button">‹ 上一页</button><span id="pageLabel" aria-live="polite">01 / 01</span><button id="nextPage" type="button">下一页 ›</button></nav>
+<footer class="footer"><span id="dataStatus">等待实时数据</span><span class="footer-right">E-INK EDITION · 电量 <span id="batPct">--</span></span></footer>
+</main>
+<script src="pagination.js"></script>
+<script src="data.js"></script>
+<script src="live-endpoint.js"></script>
+<script src="dashboard-runtime.js?v=20260914"></script>
+</body>
+</html>
